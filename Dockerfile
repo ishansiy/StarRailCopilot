@@ -24,7 +24,7 @@ ENV PORT=22367 \
 EXPOSE 22367
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
-  CMD-SHELL python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '22367') + '/', timeout=4)" || exit 1
+  CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '22367') + '/', timeout=4)"]
 
 ENTRYPOINT ["/usr/local/bin/starrail-entrypoint"]
 CMD []
