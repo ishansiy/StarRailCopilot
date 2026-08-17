@@ -9,7 +9,10 @@ __pycache__
 .env.*
 !.env.docker.example
 data
-config
+config/*
+!config/deploy.template-cn.yaml
+!config/deploy.template.yaml
+!config/template.json
 log
 webapp/node_modules
 webapp/dist
