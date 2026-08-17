@@ -12,11 +12,23 @@ services:
       PORT: "22367"
       TZ: ${TZ:-Asia/Shanghai}
       SRC_WEBUI_PASSWORD: ${SRC_WEBUI_PASSWORD:?请在 .env 中设置 SRC_WEBUI_PASSWORD}
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_HOSTNAME: ${TS_HOSTNAME:-starrail-copilot}
+      TS_STATE_DIR: /var/lib/tailscale
+      SRC_TAILSCALE_ADB_HOST: ${SRC_TAILSCALE_ADB_HOST:-}
+      SRC_TAILSCALE_ADB_PORT: ${SRC_TAILSCALE_ADB_PORT:-5555}
+      SRC_TAILSCALE_ADB_LOCAL_PORT: ${SRC_TAILSCALE_ADB_LOCAL_PORT:-5555}
+      SRC_TAILSCALE_ADB_PAIR_PORT: ${SRC_TAILSCALE_ADB_PAIR_PORT:-}
+      SRC_TAILSCALE_ADB_PAIR_CODE: ${SRC_TAILSCALE_ADB_PAIR_CODE:-}
+      SRC_TAILSCALE_ADB_PAIR_LOCAL_PORT: ${SRC_TAILSCALE_ADB_PAIR_LOCAL_PORT:-37000}
+      SRC_TAILSCALE_REQUIRED: ${SRC_TAILSCALE_REQUIRED:-1}
     ports:
       - "${SRC_WEBUI_PORT:-22367}:22367"
     volumes:
       - ./data/config:/app/config
       - ./data/log:/app/log
+      - ./data/tailscale:/var/lib/tailscale
+      - ./data/android:/root/.android
     healthcheck:
       test:
         - CMD

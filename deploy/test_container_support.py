@@ -1,0 +1,112 @@
+import json
+import os
+import socket
+import socketserver
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from pathlib import Path
+
+
+DEPLOY_DIR = Path(__file__).resolve().parent
+
+
+class EchoHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        while data := self.request.recv(64 * 1024):
+            self.request.sendall(data)
+
+
+class ContainerSupportTest(unittest.TestCase):
+    def test_configure_adb_serial_updates_template_and_profile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            original = {"Alas": {"Emulator": {"Serial": "auto"}}, "Other": {"keep": True}}
+            for name in ("template.json", "profile.json"):
+                (root / name).write_text(json.dumps(original), encoding="utf-8")
+            (root / "invalid.json").write_text("not-json", encoding="utf-8")
+
+            subprocess.run(
+                [sys.executable, str(DEPLOY_DIR / "configure-adb-serial.py"), "--config-dir", str(root), "--serial", "127.0.0.1:5555"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            for name in ("template.json", "profile.json"):
+                configured = json.loads((root / name).read_text(encoding="utf-8"))
+                self.assertEqual(configured["Alas"]["Emulator"]["Serial"], "127.0.0.1:5555")
+                self.assertTrue(configured["Other"]["keep"])
+            self.assertEqual((root / "invalid.json").read_text(encoding="utf-8"), "not-json")
+
+    @unittest.skipIf(os.name == "nt", "executable shebang test runs in Linux CI")
+    def test_tailnet_forwarder_proxies_a_tcp_stream(self):
+        with socketserver.ThreadingTCPServer(("127.0.0.1", 0), EchoHandler) as echo:
+            echo_thread = threading.Thread(target=echo.serve_forever, daemon=True)
+            echo_thread.start()
+
+            with tempfile.TemporaryDirectory() as directory:
+                fake = Path(directory) / "tailscale"
+                fake.write_text(
+                    """#!/usr/bin/env python3
+import socket, sys, threading
+s = socket.create_connection((sys.argv[-2], int(sys.argv[-1])))
+def upload():
+    while data := sys.stdin.buffer.read(65536):
+        s.sendall(data)
+    s.shutdown(socket.SHUT_WR)
+threading.Thread(target=upload, daemon=True).start()
+while data := s.recv(65536):
+    sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
+""",
+                    encoding="utf-8",
+                )
+                fake.chmod(0o755)
+
+                with socket.socket() as reservation:
+                    reservation.bind(("127.0.0.1", 0))
+                    listen_port = reservation.getsockname()[1]
+
+                forwarder = subprocess.Popen(
+                    [
+                        sys.executable,
+                        str(DEPLOY_DIR / "tailscale-adb-forwarder.py"),
+                        "--socket",
+                        "/tmp/test-tailscale.sock",
+                        "--target-host",
+                        "127.0.0.1",
+                        "--target-port",
+                        str(echo.server_address[1]),
+                        "--listen-port",
+                        str(listen_port),
+                        "--tailscale-bin",
+                        str(fake),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                try:
+                    deadline = time.time() + 5
+                    while time.time() < deadline:
+                        try:
+                            with socket.create_connection(("127.0.0.1", listen_port), timeout=0.2) as client:
+                                client.sendall(b"tailnet-adb")
+                                client.shutdown(socket.SHUT_WR)
+                                self.assertEqual(client.recv(64), b"tailnet-adb")
+                                break
+                        except OSError:
+                            time.sleep(0.05)
+                    else:
+                        self.fail("forwarder did not start")
+                finally:
+                    forwarder.terminate()
+                    forwarder.wait(timeout=5)
+
+
+if __name__ == "__main__":
+    unittest.main()
