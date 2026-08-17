@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vscode
+__pycache__
+*.py[cod]
+*.log
+.env
+.env.*
+!.env.docker.example
+data
+config
+log
+webapp/node_modules
+webapp/dist
