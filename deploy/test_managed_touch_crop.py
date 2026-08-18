@@ -36,7 +36,10 @@ def _load_command_builder():
             "uiautomator2",
             _Service=type("_Service", (), {}),
         ),
-        "websockets": _module("websockets"),
+        "websockets": _module(
+            "websockets",
+            WebSocketClientProtocol=type("WebSocketClientProtocol", (), {}),
+        ),
         "module.base.decorator": _module(
             "module.base.decorator",
             Config=_Config,
@@ -71,6 +74,9 @@ def _load_command_builder():
     with mock.patch.dict(sys.modules, stubs):
         sys.modules.pop("module.device.method.minitouch", None)
         module = importlib.import_module("module.device.method.minitouch")
+        # Python 3.14 defers annotation evaluation; force the Python 3.10
+        # import-time contract so this test catches incomplete dependency stubs.
+        _ = module.Minitouch.__annotations__
         return module.CommandBuilder, stubs["module.exception"].ScriptError
 
 
