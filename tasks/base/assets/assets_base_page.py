@@ -104,13 +104,22 @@ GACHA_CHECK = ButtonWrapper(
 )
 GUIDE_CHECK = ButtonWrapper(
     name='GUIDE_CHECK',
-    share=Button(
-        file='./assets/share/base/page/GUIDE_CHECK.png',
-        area=(64, 297, 83, 326),
-        search=(44, 277, 103, 346),
-        color=(197, 196, 197),
-        button=(64, 297, 83, 326),
-    ),
+    share=[
+        Button(
+            file='./assets/share/base/page/GUIDE_CHECK.png',
+            area=(64, 297, 83, 326),
+            search=(44, 277, 103, 346),
+            color=(197, 196, 197),
+            button=(64, 297, 83, 326),
+        ),
+        Button(
+            file='./assets/share/base/page/GUIDE_CHECK.2.png',
+            area=(98, 20, 127, 57),
+            search=(78, 0, 147, 77),
+            color=(173, 154, 133),
+            button=(98, 20, 127, 57),
+        ),
+    ],
 )
 GUIDE_CLOSE = ButtonWrapper(
     name='GUIDE_CLOSE',
