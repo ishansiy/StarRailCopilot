@@ -13,6 +13,8 @@ from module.webui.fake import get_config_mod, mod_instance
 from module.webui.setting import State
 from module.webui.submodule.utils import get_available_func
 
+from deploy.managed_adb_resolution import managed_resolution_from_environment
+
 
 class ProcessManager:
     _processes: Dict[str, "ProcessManager"] = {}
@@ -26,11 +28,41 @@ class ProcessManager:
         self._process: Process = None
         self._process_locks: Dict[str, threading.Lock] = {}
         self.thd_log_queue_handler: threading.Thread = None
+        self._managed_resolution_lease = None
+        self._managed_resolution_lock = threading.Lock()
 
     def start(self, func, ev: threading.Event = None) -> None:
         if not self.alive:
+            if (
+                self.thd_log_queue_handler is not None
+                and self.thd_log_queue_handler.is_alive()
+            ):
+                self.thd_log_queue_handler.join(timeout=2)
+            if self._managed_resolution_lease is not None:
+                self._release_managed_resolution()
+                if self._managed_resolution_lease is not None:
+                    self.renderables.append(
+                        f"[{self.config_name}] 启动失败：上次设备分辨率尚未恢复\n"
+                    )
+                    return
             if func is None:
                 func = get_config_mod(self.config_name)
+            managed_resolution_lease = None
+            controller = managed_resolution_from_environment()
+            if controller is not None:
+                try:
+                    managed_resolution_lease = controller.acquire()
+                    with self._managed_resolution_lock:
+                        self._managed_resolution_lease = managed_resolution_lease
+                    logger.info(
+                        f"[{self.config_name}] 已临时设置设备分辨率为 {controller.target}"
+                    )
+                except Exception as error:
+                    logger.exception(error)
+                    self.renderables.append(
+                        f"[{self.config_name}] 启动失败：无法托管设备分辨率\n"
+                    )
+                    return
             self._process = Process(
                 target=ProcessManager.run_process,
                 args=(
@@ -40,17 +72,22 @@ class ProcessManager:
                     ev,
                 ),
             )
-            self._process.start()
-            self.start_log_queue_handler()
+            try:
+                self._process.start()
+            except Exception:
+                self._release_managed_resolution(managed_resolution_lease)
+                raise
+            self.start_log_queue_handler(managed_resolution_lease)
 
-    def start_log_queue_handler(self):
+    def start_log_queue_handler(self, managed_resolution_lease=None):
         if (
             self.thd_log_queue_handler is not None
             and self.thd_log_queue_handler.is_alive()
         ):
             return
         self.thd_log_queue_handler = threading.Thread(
-            target=self._thread_log_queue_handler
+            target=self._thread_log_queue_handler,
+            args=(managed_resolution_lease,),
         )
         self.thd_log_queue_handler.start()
 
@@ -62,29 +99,50 @@ class ProcessManager:
             self._process_locks[self.config_name] = lock
 
         with lock:
-            if self.alive:
-                self._process.kill()
-                self.renderables.append(
-                    f"[{self.config_name}] exited. Reason: Manual stop\n"
-                )
-            if self.thd_log_queue_handler is not None:
-                self.thd_log_queue_handler.join(timeout=1)
-                if self.thd_log_queue_handler.is_alive():
-                    logger.warning(
-                        "Log queue handler thread does not stop within 1 seconds"
+            try:
+                if self.alive:
+                    self._process.kill()
+                    self._process.join(timeout=1)
+                    self.renderables.append(
+                        f"[{self.config_name}] exited. Reason: Manual stop\n"
                     )
+                if self.thd_log_queue_handler is not None:
+                    self.thd_log_queue_handler.join(timeout=1)
+                    if self.thd_log_queue_handler.is_alive():
+                        logger.warning(
+                            "Log queue handler thread does not stop within 1 seconds"
+                        )
+            finally:
+                self._release_managed_resolution()
         logger.info(f"[{self.config_name}] exited")
 
-    def _thread_log_queue_handler(self) -> None:
-        while self.alive:
+    def _thread_log_queue_handler(self, managed_resolution_lease=None) -> None:
+        try:
+            while self.alive:
+                try:
+                    log = self._renderable_queue.get(timeout=1)
+                except queue.Empty:
+                    continue
+                self.renderables.append(log)
+                if len(self.renderables) > self.renderables_max_length:
+                    self.renderables = self.renderables[self.renderables_reduce_length :]
+        finally:
+            self._release_managed_resolution(managed_resolution_lease)
+            logger.info("End of log queue handler loop")
+
+    def _release_managed_resolution(self, lease=None) -> None:
+        with self._managed_resolution_lock:
+            if lease is None:
+                lease = self._managed_resolution_lease
+            if lease is None:
+                return
             try:
-                log = self._renderable_queue.get(timeout=1)
-            except queue.Empty:
-                continue
-            self.renderables.append(log)
-            if len(self.renderables) > self.renderables_max_length:
-                self.renderables = self.renderables[self.renderables_reduce_length :]
-        logger.info("End of log queue handler loop")
+                lease.release()
+                if self._managed_resolution_lease is lease:
+                    self._managed_resolution_lease = None
+                logger.info(f"[{self.config_name}] 已恢复设备原分辨率")
+            except Exception as error:
+                logger.exception(error)
 
     @property
     def alive(self) -> bool:

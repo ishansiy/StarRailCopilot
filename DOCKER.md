@@ -20,6 +20,10 @@ The image runs Tailscale in userspace networking mode, so it does not require
 - `SRC_TAILSCALE_ADB_HOST`: Phone MagicDNS name or Tailscale IP.
 - `SRC_TAILSCALE_ADB_PORT`: Phone wireless-debugging port.
 - `SRC_TAILSCALE_ADB_LOCAL_PORT`: Local loopback port, normally `5555`.
+- `SRC_ADB_MANAGED_RESOLUTION`: Optional Android display size such as
+  `720x1280`. The WebUI applies it immediately before a worker starts, then
+  restores the phone's previous override (or its physical size) after the
+  worker finishes, fails, or is stopped manually.
 - `SRC_TAILSCALE_ADB_PAIR_PORT`: One-time pairing port shown by Android.
 - `SRC_TAILSCALE_ADB_PAIR_CODE`: One-time pairing code. Store this as a Secret
   and remove it after the first successful pairing.
