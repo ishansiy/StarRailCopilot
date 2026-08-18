@@ -72,10 +72,11 @@ class AzurLaneAutoScript:
     def goto_main(self):
         raise NotImplemented
 
-    def run(self, command):
+    def run(self, command, skip_initial_screenshot=False):
         try:
-            self.device.screenshot()
-            self.device.screenshot_tracking.clear()
+            if not skip_initial_screenshot:
+                self.device.screenshot()
+                self.device.screenshot_tracking.clear()
             self.__getattribute__(command)()
             return True
         except TaskEnd:
@@ -270,6 +271,16 @@ class AzurLaneAutoScript:
         AzurLaneConfig.is_hoarding_task = False
         return task.command
 
+    def ensure_app_running_at_scheduler_start(self):
+        """Bring the game to the foreground before the first scheduled task."""
+        if not self.is_first_task:
+            return True
+        if self.device.app_is_running():
+            return True
+
+        logger.info('App is not running at scheduler start, start app now')
+        return self.run('start', skip_initial_screenshot=True)
+
     def loop(self):
         logger.set_file_logger(self.config_name)
         logger.info(f'Start scheduler loop: {self.config_name}')
@@ -296,6 +307,9 @@ class AzurLaneAutoScript:
             # Init device and change server
             _ = self.device
             self.device.config = self.config
+            if not self.ensure_app_running_at_scheduler_start():
+                logger.critical('Unable to start app at scheduler start')
+                raise RequestHumanTakeover
             # Skip first restart
             if self.is_first_task and task == 'Restart':
                 logger.info('Skip task `Restart` at scheduler start')

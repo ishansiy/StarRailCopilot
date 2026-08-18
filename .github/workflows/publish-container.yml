@@ -43,7 +43,7 @@ jobs:
         run: |
           sh -n deploy/docker-entrypoint.sh
           python -m py_compile deploy/tailscale-adb-forwarder.py deploy/configure-adb-serial.py deploy/adb-device-state.py deploy/managed_adb_resolution.py
-          python -m unittest deploy.test_container_support deploy.test_managed_adb_resolution
+          python -m unittest deploy.test_container_support deploy.test_managed_adb_resolution deploy.test_scheduler_start
 
       - name: Build and publish
         uses: docker/build-push-action@v6
