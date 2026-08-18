@@ -160,16 +160,23 @@ start_tailscale() {
   fi
 
   adb_retry_seconds="${SRC_TAILSCALE_ADB_RETRY_SECONDS:-15}"
+  adb_connect_timeout="${SRC_TAILSCALE_ADB_CONNECT_TIMEOUT_SECONDS:-10}"
   case "$adb_retry_seconds" in
     ''|*[!0-9]*|0)
       echo "SRC_TAILSCALE_ADB_RETRY_SECONDS 必须是正整数" >&2
       return 1
       ;;
   esac
+  case "$adb_connect_timeout" in
+    ''|*[!0-9]*|0)
+      echo "SRC_TAILSCALE_ADB_CONNECT_TIMEOUT_SECONDS 必须是正整数" >&2
+      return 1
+      ;;
+  esac
   (
     previous_state="__initial__"
     while :; do
-      adb connect "$adb_serial" >/dev/null 2>&1 || true
+      timeout "$adb_connect_timeout" adb connect "$adb_serial" >/dev/null 2>&1 || true
       adb_state="$(adb devices 2>/dev/null | awk -v serial="$adb_serial" '$1 == serial { print $2; exit }')"
       if [ "$adb_state" != "$previous_state" ]; then
         case "$adb_state" in
@@ -177,13 +184,13 @@ start_tailscale() {
             echo "Tailnet ADB 设备已连接"
             ;;
           unauthorized)
-            echo "Tailnet ADB 等待手机确认 RSA 调试授权" >&2
+            echo "Tailnet ADB 等待手机确认 RSA 调试授权"
             ;;
           offline)
-            echo "Tailnet ADB 设备离线，继续自动重连" >&2
+            echo "Tailnet ADB 设备离线，继续自动重连"
             ;;
           *)
-            echo "Tailnet ADB 设备暂未连接，继续自动重连" >&2
+            echo "Tailnet ADB 设备暂未连接，继续自动重连"
             ;;
         esac
       fi

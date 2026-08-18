@@ -21,6 +21,8 @@ The image runs Tailscale in userspace networking mode, so it does not require
 - `SRC_TAILSCALE_ADB_PAIR_PORT`: One-time pairing port shown by Android.
 - `SRC_TAILSCALE_ADB_PAIR_CODE`: One-time pairing code. Store this as a Secret
   and remove it after the first successful pairing.
+- `SRC_TAILSCALE_ADB_CONNECT_TIMEOUT_SECONDS`: Timeout for one ADB connection
+  attempt, normally `10`.
 - `SRC_TAILSCALE_ADB_RETRY_SECONDS`: Reconnection interval, normally `15`.
 
 StarRailCopilot is configured to use

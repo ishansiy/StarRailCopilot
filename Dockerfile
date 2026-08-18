@@ -21,6 +21,7 @@ RUN python -m pip install --no-cache-dir -r requirements-in.txt \
     && command -v python \
     && command -v git \
     && command -v adb \
+    && command -v timeout \
     && install -m 0755 deploy/docker-entrypoint.sh /usr/local/bin/starrail-entrypoint \
     && install -m 0755 deploy/tailscale-adb-forwarder.py /usr/local/bin/starrail-tailscale-forwarder \
     && install -m 0755 deploy/configure-adb-serial.py /usr/local/bin/starrail-configure-adb

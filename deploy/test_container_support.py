@@ -24,6 +24,7 @@ class ContainerSupportTest(unittest.TestCase):
     def test_entrypoint_keeps_reconnecting_adb(self):
         entrypoint = (DEPLOY_DIR / "docker-entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn('while :; do', entrypoint)
+        self.assertIn('timeout "$adb_connect_timeout" adb connect', entrypoint)
         self.assertIn('adb devices', entrypoint)
         self.assertIn('Tailnet ADB 等待手机确认 RSA 调试授权', entrypoint)
         self.assertNotIn('while [ "$retry" -lt 60 ]', entrypoint)
