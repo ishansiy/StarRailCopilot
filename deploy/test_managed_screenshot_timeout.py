@@ -128,7 +128,7 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
         cls.adb_module = _load_adb_module()
         cls.Adb = cls.adb_module.Adb
 
-    def test_managed_crop_screencap_gets_45_second_timeout(self):
+    def test_managed_crop_screencap_gets_90_second_timeout(self):
         calls = []
 
         class Device(self.Adb):
@@ -149,10 +149,10 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
 
         self.assertEqual(
             calls,
-            [(["screencap", "-p"], {"stream": True, "timeout": 45})],
+            [(["screencap", "-p"], {"stream": True, "timeout": 90})],
         )
 
-    def test_managed_crop_screencap_fails_closed_within_two_capture_deadlines(self):
+    def test_managed_crop_screencap_uses_one_continuous_capture_deadline(self):
         timeouts = []
         reconnects = []
         adb_module = self.adb_module
@@ -175,9 +175,9 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
             with self.assertRaises(adb_module.RequestHumanTakeover):
                 Device().screenshot_adb()
 
-        self.assertEqual(timeouts, [45, 45])
+        self.assertEqual(timeouts, [90])
         self.assertLessEqual(sum(timeouts), 90)
-        self.assertEqual(len(reconnects), 1)
+        self.assertEqual(reconnects, [])
 
     def test_regular_screencap_keeps_five_ten_second_attempts(self):
         timeouts = []
