@@ -50,8 +50,8 @@ jobs:
       - name: Validate container support
         run: |
           sh -n deploy/docker-entrypoint.sh
-          python -m py_compile deploy/tailscale-adb-forwarder.py deploy/configure-adb-serial.py deploy/adb-device-state.py deploy/managed_adb_resolution.py module/device/device.py module/device/managed_screenshot_crop.py module/device/method/adb_shell_patch.py module/device/method/minitouch.py module/device/method/maatouch.py module/device/method/utils.py module/device/screenshot.py module/webui/process_manager.py
-          python -m unittest deploy.test_container_support deploy.test_managed_adb_resolution deploy.test_managed_screenshot_crop deploy.test_managed_touch_crop deploy.test_process_manager_resolution deploy.test_scheduler_start deploy.test_guide_ui_assets
+          python -m py_compile deploy/tailscale-adb-forwarder.py deploy/configure-adb-serial.py deploy/adb-device-state.py deploy/managed_adb_resolution.py deploy/test_managed_joystick_contact.py module/device/control.py module/device/device.py module/device/managed_screenshot_crop.py module/device/method/adb_shell_patch.py module/device/method/minitouch.py module/device/method/maatouch.py module/device/method/utils.py module/device/screenshot.py module/webui/process_manager.py tasks/map/control/joystick.py
+          python -m unittest deploy.test_container_support deploy.test_managed_adb_resolution deploy.test_managed_screenshot_crop deploy.test_managed_screenshot_runtime deploy.test_managed_touch_crop deploy.test_managed_control_guard deploy.test_managed_joystick_contact deploy.test_process_manager_resolution deploy.test_scheduler_start deploy.test_guide_ui_assets
 
       - name: Build and publish
         uses: docker/build-push-action@v6

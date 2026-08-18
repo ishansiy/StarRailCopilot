@@ -54,8 +54,12 @@ class ProcessManager:
                     managed_resolution_lease = controller.acquire()
                     with self._managed_resolution_lock:
                         self._managed_resolution_lease = managed_resolution_lease
+                    keep_awake_note = (
+                        "，并在接电期间保持唤醒" if controller.keep_awake else ""
+                    )
                     logger.info(
-                        f"[{self.config_name}] 已临时设置设备分辨率为 {controller.target}"
+                        f"[{self.config_name}] 已临时设置设备分辨率为 "
+                        f"{controller.target}{keep_awake_note}"
                     )
             except Exception as error:
                 logger.exception(error)
@@ -77,7 +81,17 @@ class ProcessManager:
             except Exception:
                 self._release_managed_resolution(managed_resolution_lease)
                 raise
-            self.start_log_queue_handler(managed_resolution_lease)
+            try:
+                self.start_log_queue_handler(managed_resolution_lease)
+            except Exception:
+                try:
+                    if self.alive:
+                        self._process.kill()
+                        self._process.join(timeout=1)
+                finally:
+                    self.thd_log_queue_handler = None
+                    self._release_managed_resolution(managed_resolution_lease)
+                raise
 
     def start_log_queue_handler(self, managed_resolution_lease=None):
         if (

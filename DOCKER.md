@@ -24,6 +24,12 @@ The image runs Tailscale in userspace networking mode, so it does not require
   `720x1280`. The WebUI applies it immediately before a worker starts, then
   restores the phone's previous override (or its physical size) after the
   worker finishes, fails, or is stopped manually.
+- `SRC_ADB_MANAGED_KEEP_AWAKE`: Keeps a powered phone awake while the managed
+  display-size lease is active, wakes it, and dismisses a non-secure keyguard.
+  Crop mode enables this by default; set it to `0` only if another mechanism
+  owns screen wakefulness. The phone must be connected to AC, USB, or wireless
+  power. Its previous `stay_on_while_plugged_in` value is restored with the
+  display size when the worker exits.
 - `SRC_ADB_MANAGED_SCREEN_CROP`: Optional `LEFT,TOP,RIGHT,BOTTOM` crop for a
   phone whose hardware cutout keeps the game safe area smaller than the
   `1280x720` asset canvas. Pair it with a correspondingly larger managed

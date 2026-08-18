@@ -31,6 +31,8 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
     _minicap_uninstalled = False
     _screenshot_interval = Timer(0.1)
     _last_save_time = {}
+    _managed_crop_landscape_frame_at = None
+    _managed_crop_frame_generation = 0
     image: np.ndarray
 
     @cached_property
@@ -69,14 +71,34 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
         self._screenshot_interval.wait()
         self._screenshot_interval.reset()
 
-        for _ in range(2):
+        crop = managed_screenshot_crop_from_environment()
+        attempts = 5 if crop is not None else 2
+        for _ in range(attempts):
             if self.screenshot_method_override:
                 method = self.screenshot_method_override
             else:
                 method = self.config.Emulator_ScreenshotMethod
             method = self.screenshot_methods.get(method, self.screenshot_adb)
 
-            self.image = method()
+            if crop is not None:
+                # A failed or portrait capture must not leave a previous
+                # landscape frame eligible to authorize a later touch.
+                self._managed_crop_landscape_frame_at = None
+            image = method()
+            if crop is not None and image_size(image) != crop.source_size:
+                width, height = image_size(image)
+                logger.info(
+                    'Managed phone frame is not the tested landscape canvas: '
+                    f'{width}x{height}'
+                )
+                continue
+
+            self.image = image
+            if crop is not None:
+                self._managed_crop_landscape_frame_at = time.monotonic()
+                self._managed_crop_frame_generation = (
+                    getattr(self, '_managed_crop_frame_generation', 0) + 1
+                )
 
             # if self.config.Emulator_ScreenshotDedithering:
             #     # This will take 40-60ms
@@ -90,6 +112,11 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
                 break
             else:
                 continue
+        else:
+            if crop is not None:
+                raise RequestHumanTakeover(
+                    'Managed phone did not provide a landscape screenshot'
+                )
 
         return self.image
 
@@ -106,6 +133,12 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
             np.ndarray:
         """
         crop = managed_screenshot_crop_from_environment()
+        if crop is not None:
+            # Managed crop is bound to one tested landscape canvas. Never use
+            # a cached orientation to rotate a portrait launcher/lock-screen
+            # frame into something that looks like an authorized game frame.
+            return apply_managed_screenshot_crop(image, crop)
+
         image = apply_managed_screenshot_crop(image, crop)
         width, height = image_size(image)
         if width == 1280 and height == 720:
@@ -228,14 +261,12 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
         Screen size must be 1280x720.
         Take a screenshot before call.
         """
-        if self._screen_size_checked:
+        crop = managed_screenshot_crop_from_environment()
+        if self._screen_size_checked and crop is None:
             return True
 
         orientated = False
         orientated_sizes = {(720, 1280)}
-        crop = managed_screenshot_crop_from_environment()
-        if crop is not None:
-            orientated_sizes.add(crop.portrait_source_size)
         for _ in range(2):
             # Check screen size
             width, height = image_size(self.image)
@@ -243,6 +274,9 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
             if width == 1280 and height == 720:
                 self._screen_size_checked = True
                 return True
+            elif crop is not None and (width, height) == crop.portrait_source_size:
+                logger.info('Managed phone is not landscape yet, retry screenshot')
+                return False
             elif not orientated and (width, height) in orientated_sizes:
                 logger.info('Received orientated screenshot, handling')
                 self.get_orientation()

@@ -29,6 +29,8 @@ class JoystickContact:
         """
         self.main = main
         self.prev_point = None
+        self.contact_may_be_down = False
+        self.maatouch_stream_generation = None
 
     def __enter__(self):
         return self
@@ -42,16 +44,21 @@ class JoystickContact:
         - Process is force terminated
         """
         if self.is_downed:
-            self.up()
-            logger.info('JoystickContact ends')
+            try:
+                self.up()
+                logger.info('JoystickContact ends')
+            except Exception as error:
+                logger.warning(f'JoystickContact release failed: {error}')
+                if exc_type is None:
+                    raise
         else:
             logger.info('JoystickContact ends but it was never downed')
 
     @property
     def is_downed(self):
-        return self.prev_point is not None
+        return self.contact_may_be_down
 
-    @cached_property
+    @property
     def builder(self):
         """
         Initialize a command builder
@@ -88,7 +95,12 @@ class JoystickContact:
         else:
             raise ScriptError(f'Control method {method} does not support multi-finger')
 
-        return retry(func)(self)
+        device = self.main.device
+
+        def invoke(_device):
+            return func(self)
+
+        return retry(invoke)(device)
 
     @classmethod
     def direction2screen(cls, direction, run=True):
@@ -122,14 +134,16 @@ class JoystickContact:
         if not self.is_downed:
             return
         logger.info('JoystickContact up')
-        builder = self.builder
 
         def _up(_self):
+            builder = self.builder
             builder.up().commit()
             builder.send()
 
         self.with_retry(_up)
         self.prev_point = None
+        self.contact_may_be_down = False
+        self.maatouch_stream_generation = None
 
     def set(self, direction, run=True):
         """
@@ -141,7 +155,6 @@ class JoystickContact:
         """
         logger.info(f'JoystickContact set to {direction}, run={run}')
         point = JoystickContact.direction2screen(direction, run=run)
-        builder = self.builder
 
         if self.is_downed and not self.main.joystick_speed():
             if self.main.joystick_lost_timer.reached():
@@ -154,16 +167,44 @@ class JoystickContact:
             points = insert_swipe(p0=self.prev_point, p3=point, speed=20)
 
             def _set(_self):
-                for p in points[1:]:
-                    builder.move(*p).commit().wait(10)
+                builder = self.builder
+                generation = getattr(
+                    self.main.device,
+                    '_maatouch_stream_generation',
+                    None,
+                )
+                if (
+                    self.main.config.Emulator_ControlMethod == 'MaaTouch'
+                    and generation != self.maatouch_stream_generation
+                ):
+                    # Rebuilding the shared stream releases every contact.
+                    # Restore the logical joystick hold with a fresh down.
+                    builder.down(*point).commit()
+                else:
+                    for p in points[1:]:
+                        builder.move(*p).commit().wait(10)
                 builder.send()
+                self.maatouch_stream_generation = getattr(
+                    self.main.device,
+                    '_maatouch_stream_generation',
+                    None,
+                )
 
             self.with_retry(_set)
         else:
             def _set(_self):
+                builder = self.builder
                 builder.down(*point).commit()
                 builder.send()
+                self.maatouch_stream_generation = getattr(
+                    self.main.device,
+                    '_maatouch_stream_generation',
+                    None,
+                )
 
+            # Set before sending: sendall can partially deliver the down and
+            # then fail, in which case context exit must still issue an up.
+            self.contact_may_be_down = True
             self.with_retry(_set)
             # Character starts moving, RUN button is still unavailable in a short time.
             # Assume available in 0.3s
