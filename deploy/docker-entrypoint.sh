@@ -64,6 +64,27 @@ if [ -n "$adb_state_dir" ]; then
   fi
 fi
 
+if [ -n "${SRC_ADB_PRIVATE_KEY_B64:-}" ]; then
+  adb_key_dir="${adb_state_dir:-/root/.android}"
+  mkdir -p "$adb_key_dir"
+  adb_key_tmp="$(mktemp "$adb_key_dir/.adbkey.XXXXXX")"
+  adb_pub_tmp="$(mktemp "$adb_key_dir/.adbkey.pub.XXXXXX")"
+  if ! printf '%s' "$SRC_ADB_PRIVATE_KEY_B64" | base64 -d >"$adb_key_tmp" 2>/dev/null \
+    || [ ! -s "$adb_key_tmp" ] \
+    || ! adb pubkey "$adb_key_tmp" >"$adb_pub_tmp" 2>/dev/null; then
+    rm -f "$adb_key_tmp" "$adb_pub_tmp"
+    echo "SRC_ADB_PRIVATE_KEY_B64 不是有效的 ADB 私钥" >&2
+    exit 65
+  fi
+  chmod 600 "$adb_key_tmp"
+  chmod 644 "$adb_pub_tmp"
+  mv -f "$adb_key_tmp" "$adb_key_dir/adbkey"
+  mv -f "$adb_pub_tmp" "$adb_key_dir/adbkey.pub"
+  adb kill-server >/dev/null 2>&1 || true
+  echo "已加载 Studio 专用 ADB 客户端密钥"
+fi
+unset SRC_ADB_PRIVATE_KEY_B64
+
 start_tailscale() {
   tailscale_target="${SRC_TAILSCALE_ADB_HOST:-}"
   tailscale_authkey="${TS_AUTHKEY:-${TAILSCALE_AUTHKEY:-}}"
@@ -210,7 +231,8 @@ start_tailscale() {
     previous_state="__initial__"
     while :; do
       timeout "$adb_connect_timeout" adb connect "$adb_serial" >/dev/null 2>&1 || true
-      adb_state="$(timeout "$adb_connect_timeout" adb -s "$adb_serial" get-state 2>/dev/null || true)"
+      adb_devices="$(timeout "$adb_connect_timeout" adb devices 2>/dev/null || true)"
+      adb_state="$(printf '%s\n' "$adb_devices" | /usr/local/bin/starrail-adb-device-state --serial "$adb_serial")"
       if [ "$adb_state" != "$previous_state" ]; then
         case "$adb_state" in
           device)
