@@ -18,8 +18,8 @@ from module.exception import RequestHumanTakeover, ScriptError
 from module.logger import logger
 
 
-MANAGED_SCREENSHOT_TIMEOUT = 45
-MANAGED_SCREENSHOT_RETRY_TRIES = 2
+MANAGED_SCREENSHOT_TIMEOUT = 90
+MANAGED_SCREENSHOT_RETRY_TRIES = 1
 
 
 def _screenshot_retry_tries(device):
