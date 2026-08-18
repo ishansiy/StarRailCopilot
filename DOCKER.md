@@ -40,3 +40,5 @@ from the one-time pairing port.
 The container keeps reconnecting in the background when the phone is offline or
 restarts. A non-paired TCP ADB endpoint may still ask once for RSA debugging
 authorization; that confirmation is different from Android wireless pairing.
+Startup logs report subnet-route and TCP reachability separately without
+printing credentials.

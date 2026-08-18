@@ -144,6 +144,16 @@ start_tailscale() {
   tailscale_target_port="${SRC_TAILSCALE_ADB_PORT:-5555}"
   tailscale_local_port="${SRC_TAILSCALE_ADB_LOCAL_PORT:-5555}"
   adb_serial="${SRC_ADB_SERIAL:-127.0.0.1:${tailscale_local_port}}"
+  if timeout 10 /usr/local/bin/tailscale --socket="$tailscale_socket" ping --c 1 "$tailscale_target" >/dev/null 2>&1; then
+    echo "Tailnet ADB 目标路由可达"
+  else
+    echo "Tailnet ADB 目标路由暂不可达，后台仍会继续重试"
+  fi
+  if timeout 10 /usr/local/bin/tailscale --socket="$tailscale_socket" nc "$tailscale_target" "$tailscale_target_port" </dev/null >/dev/null 2>&1; then
+    echo "Tailnet ADB TCP 端口可达"
+  else
+    echo "Tailnet ADB TCP 端口暂不可达，后台仍会继续重试"
+  fi
   /usr/local/bin/starrail-tailscale-forwarder \
     --socket "$tailscale_socket" \
     --target-host "$tailscale_target" \

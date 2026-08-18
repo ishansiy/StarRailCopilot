@@ -25,6 +25,8 @@ class ContainerSupportTest(unittest.TestCase):
         entrypoint = (DEPLOY_DIR / "docker-entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn('set --accept-routes=true', entrypoint)
         self.assertIn('SRC_TAILSCALE_ACCEPT_ROUTES 只允许', entrypoint)
+        self.assertIn('Tailnet ADB 目标路由可达', entrypoint)
+        self.assertIn('Tailnet ADB TCP 端口可达', entrypoint)
         self.assertIn('while :; do', entrypoint)
         self.assertIn('timeout "$adb_connect_timeout" adb connect', entrypoint)
         self.assertIn('adb -s "$adb_serial" get-state', entrypoint)
