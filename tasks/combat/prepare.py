@@ -50,9 +50,16 @@ class CombatPrepare(StaminaStatus):
 
         # slide
         WAVE_CHECK.load_offset(WAVE_CHECK)
-        area = ClickButton(WAVE_SLIDER.button, name=WAVE_SLIDER.name)
-        slider = Slider(main=self, slider=area)
-        slider.set(count, total)
+        if count == 1:
+            # The 4.4 UI moved only the slider's left endpoint while leaving
+            # the minus/plus controls stable. Avoid a version-sensitive track
+            # click for the minimum value; ui_ensure_index below still OCRs
+            # the live value and presses minus if the current value is not 1.
+            logger.info('Wave target is 1, defer exact correction to OCR')
+        else:
+            area = ClickButton(WAVE_SLIDER.button, name=WAVE_SLIDER.name)
+            slider = Slider(main=self, slider=area)
+            slider.set(count, total)
 
         # double check wave
         WAVE_CHECK.load_offset(WAVE_CHECK)
