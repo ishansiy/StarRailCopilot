@@ -333,6 +333,71 @@ class AdbReadLimitsTest(unittest.TestCase):
             writer.close()
             producer.join(timeout=1)
 
+    def test_adb_shell_recvall_shares_timeout_with_transport_open(self):
+        transport = object()
+
+        class FakeAdb:
+            @staticmethod
+            def shell(_cmd, stream=False, timeout=None, rstrip=True):
+                self.assertEqual(timeout, 10)
+                return transport
+
+        device = types.SimpleNamespace(adb=FakeAdb())
+        clock = types.SimpleNamespace(
+            monotonic=mock.Mock(side_effect=[100.0, 103.0]),
+        )
+
+        with mock.patch.object(self.connection, "time", clock):
+            with mock.patch.object(
+                self.connection,
+                "recv_all",
+                return_value=b"screenshot",
+            ) as recv_all:
+                result = self.connection.Connection.adb_shell(
+                    device,
+                    ["screencap", "-p"],
+                    stream=True,
+                    recvall=True,
+                    timeout=10,
+                )
+
+        self.assertEqual(result, b"screenshot")
+        recv_all.assert_called_once_with(
+            transport,
+            total_timeout=7,
+            max_bytes=self.connection.ADB_SHELL_MAX_OUTPUT_BYTES,
+        )
+
+    def test_adb_shell_recvall_preserves_unbounded_timeout_none(self):
+        transport = object()
+
+        class FakeAdb:
+            @staticmethod
+            def shell(_cmd, stream=False, timeout=None, rstrip=True):
+                self.assertIsNone(timeout)
+                return transport
+
+        device = types.SimpleNamespace(adb=FakeAdb())
+        with mock.patch.object(
+            self.connection,
+            "recv_all",
+            return_value=b"stream",
+        ) as recv_all:
+            result = self.connection.Connection.adb_shell(
+                device,
+                ["long-read"],
+                stream=True,
+                recvall=True,
+                timeout=None,
+            )
+
+        self.assertEqual(result, b"stream")
+        recv_all.assert_called_once_with(
+            transport,
+            total_timeout=None,
+            max_bytes=self.connection.ADB_SHELL_MAX_OUTPUT_BYTES,
+        )
+
     def test_adb_shell_recvall_rejects_output_above_one_shot_limit(self):
         reader, writer = socket.socketpair()
         transport = _AdbConnection(reader)
