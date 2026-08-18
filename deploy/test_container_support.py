@@ -29,10 +29,31 @@ class ContainerSupportTest(unittest.TestCase):
         self.assertIn('Tailnet ADB TCP 端口可达', entrypoint)
         self.assertIn('while :; do', entrypoint)
         self.assertIn('timeout "$adb_connect_timeout" adb connect', entrypoint)
-        self.assertIn('adb -s "$adb_serial" get-state', entrypoint)
+        self.assertIn('SRC_ADB_PRIVATE_KEY_B64', entrypoint)
+        self.assertIn('starrail-adb-device-state --serial "$adb_serial"', entrypoint)
+        self.assertNotIn('adb -s "$adb_serial" get-state', entrypoint)
         self.assertNotIn('| awk', entrypoint)
         self.assertIn('Tailnet ADB 等待手机确认 RSA 调试授权', entrypoint)
         self.assertNotIn('while [ "$retry" -lt 60 ]', entrypoint)
+
+    def test_adb_device_state_parser_distinguishes_authorization_states(self):
+        parser = DEPLOY_DIR / "adb-device-state.py"
+        samples = {
+            "device": "List of devices attached\n127.0.0.1:5555\tdevice product:x model:y\n",
+            "unauthorized": "List of devices attached\n127.0.0.1:5555\tunauthorized transport_id:1\n",
+            "offline": "List of devices attached\n127.0.0.1:5555\toffline transport_id:1\n",
+            "missing": "List of devices attached\n\n",
+        }
+        for expected, output in samples.items():
+            with self.subTest(expected=expected):
+                result = subprocess.run(
+                    [sys.executable, str(parser), "--serial", "127.0.0.1:5555"],
+                    input=output,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.stdout.strip(), expected)
 
     def test_configure_adb_serial_updates_template_and_profile(self):
         with tempfile.TemporaryDirectory() as directory:
