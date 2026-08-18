@@ -43,7 +43,10 @@ def _load_device_class():
     screenshot = type("Screenshot", (), {})
     control = type("Control", (), {})
     app_control = type("AppControl", (), {})
-    etree = _module("lxml.etree")
+    etree = _module(
+        "lxml.etree",
+        _Element=type("_Element", (), {}),
+    )
     stubs = {
         "lxml": _module("lxml", etree=etree),
         "lxml.etree": etree,
