@@ -159,18 +159,37 @@ start_tailscale() {
     pair_forwarder_pid=""
   fi
 
+  adb_retry_seconds="${SRC_TAILSCALE_ADB_RETRY_SECONDS:-15}"
+  case "$adb_retry_seconds" in
+    ''|*[!0-9]*|0)
+      echo "SRC_TAILSCALE_ADB_RETRY_SECONDS 必须是正整数" >&2
+      return 1
+      ;;
+  esac
   (
-    retry=0
-    while [ "$retry" -lt 60 ]; do
+    previous_state="__initial__"
+    while :; do
       adb connect "$adb_serial" >/dev/null 2>&1 || true
-      if [ "$(adb -s "$adb_serial" get-state 2>/dev/null || true)" = "device" ]; then
-        echo "Tailnet ADB 设备已连接"
-        exit 0
+      adb_state="$(adb devices 2>/dev/null | awk -v serial="$adb_serial" '$1 == serial { print $2; exit }')"
+      if [ "$adb_state" != "$previous_state" ]; then
+        case "$adb_state" in
+          device)
+            echo "Tailnet ADB 设备已连接"
+            ;;
+          unauthorized)
+            echo "Tailnet ADB 等待手机确认 RSA 调试授权" >&2
+            ;;
+          offline)
+            echo "Tailnet ADB 设备离线，继续自动重连" >&2
+            ;;
+          *)
+            echo "Tailnet ADB 设备暂未连接，继续自动重连" >&2
+            ;;
+        esac
       fi
-      retry=$((retry + 1))
-      sleep 10
+      previous_state="$adb_state"
+      sleep "$adb_retry_seconds"
     done
-    echo "Tailnet ADB 设备暂未连接；请检查手机无线调试端口和 Tailnet ACL" >&2
   ) &
   adb_retry_pid=$!
 }
