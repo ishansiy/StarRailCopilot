@@ -10,6 +10,8 @@ import time
 import unittest
 from pathlib import Path
 
+from module.device.method.adb_shell_patch import shell_with_check_okay
+
 
 DEPLOY_DIR = Path(__file__).resolve().parent
 
@@ -38,6 +40,40 @@ class ContainerSupportTest(unittest.TestCase):
         self.assertNotIn('| awk', entrypoint)
         self.assertIn('Tailnet ADB 等待手机确认 RSA 调试授权', entrypoint)
         self.assertNotIn('while [ "$retry" -lt 60 ]', entrypoint)
+
+    def test_stream_shell_keeps_the_requested_transport_timeout(self):
+        class FakeConnection:
+            def __init__(self):
+                self.commands = []
+                self.checked = False
+
+            def send_command(self, command):
+                self.commands.append(command)
+
+            def check_okay(self):
+                self.checked = True
+
+        class FakeDevice:
+            def __init__(self):
+                self.timeout = None
+                self.connection = FakeConnection()
+
+            def open_transport(self, timeout=None):
+                self.timeout = timeout
+                return self.connection
+
+        device = FakeDevice()
+        connection = shell_with_check_okay(
+            device,
+            ["screencap", "-p"],
+            stream=True,
+            timeout=0.1,
+        )
+
+        self.assertIs(connection, device.connection)
+        self.assertEqual(device.timeout, 0.1)
+        self.assertEqual(device.connection.commands, ["shell:screencap -p"])
+        self.assertTrue(device.connection.checked)
 
     def test_adb_device_state_parser_distinguishes_authorization_states(self):
         parser = DEPLOY_DIR / "adb-device-state.py"
