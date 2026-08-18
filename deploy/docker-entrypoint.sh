@@ -64,12 +64,20 @@ if [ -n "$adb_state_dir" ]; then
   fi
 fi
 
-if [ -n "${SRC_ADB_PRIVATE_KEY_B64:-}" ]; then
+adb_private_key_single="${SRC_ADB_PRIVATE_KEY_B64:-}"
+adb_private_key_parts="${SRC_ADB_PRIVATE_KEY_B64_PART_1:-}${SRC_ADB_PRIVATE_KEY_B64_PART_2:-}${SRC_ADB_PRIVATE_KEY_B64_PART_3:-}${SRC_ADB_PRIVATE_KEY_B64_PART_4:-}"
+if [ -n "$adb_private_key_single" ] && [ -n "$adb_private_key_parts" ]; then
+  echo "SRC_ADB_PRIVATE_KEY_B64 与分片变量不能同时配置" >&2
+  exit 65
+fi
+adb_private_key_b64="${adb_private_key_single}${adb_private_key_parts}"
+
+if [ -n "$adb_private_key_b64" ]; then
   adb_key_dir="${adb_state_dir:-/root/.android}"
   mkdir -p "$adb_key_dir"
   adb_key_tmp="$(mktemp "$adb_key_dir/.adbkey.XXXXXX")"
   adb_pub_tmp="$(mktemp "$adb_key_dir/.adbkey.pub.XXXXXX")"
-  if ! printf '%s' "$SRC_ADB_PRIVATE_KEY_B64" | base64 -d >"$adb_key_tmp" 2>/dev/null \
+  if ! printf '%s' "$adb_private_key_b64" | base64 -d >"$adb_key_tmp" 2>/dev/null \
     || [ ! -s "$adb_key_tmp" ] \
     || ! adb pubkey "$adb_key_tmp" >"$adb_pub_tmp" 2>/dev/null; then
     rm -f "$adb_key_tmp" "$adb_pub_tmp"
@@ -83,7 +91,8 @@ if [ -n "${SRC_ADB_PRIVATE_KEY_B64:-}" ]; then
   adb kill-server >/dev/null 2>&1 || true
   echo "已加载 Studio 专用 ADB 客户端密钥"
 fi
-unset SRC_ADB_PRIVATE_KEY_B64
+unset SRC_ADB_PRIVATE_KEY_B64 SRC_ADB_PRIVATE_KEY_B64_PART_1 SRC_ADB_PRIVATE_KEY_B64_PART_2 SRC_ADB_PRIVATE_KEY_B64_PART_3 SRC_ADB_PRIVATE_KEY_B64_PART_4
+unset adb_private_key_single adb_private_key_parts adb_private_key_b64
 
 start_tailscale() {
   tailscale_target="${SRC_TAILSCALE_ADB_HOST:-}"
