@@ -13,6 +13,7 @@ _ = get_distribution
 from module.base.timer import Timer
 from module.device.app_control import AppControl
 from module.device.control import Control
+from module.device.managed_screenshot_crop import managed_screenshot_crop_from_environment
 from module.device.screenshot import Screenshot
 from module.exception import (
     EmulatorNotRunningError,
@@ -129,6 +130,18 @@ class Device(Screenshot, Control, AppControl):
         """
         Check combinations of screenshot method and control methods
         """
+        managed_crop = managed_screenshot_crop_from_environment()
+        if managed_crop is not None:
+            if self.config.DEVICE_OVER_HTTP:
+                logger.critical('Managed phone crop does not support HTTP devices')
+                raise RequestHumanTakeover
+            if self.config.Emulator_ScreenshotMethod != 'ADB':
+                logger.info('Managed phone crop requires ADB screenshots')
+                self.config.Emulator_ScreenshotMethod = 'ADB'
+            if self.config.Emulator_ControlMethod != 'MaaTouch':
+                logger.info('Managed phone crop requires MaaTouch control')
+                self.config.Emulator_ControlMethod = 'MaaTouch'
+
         # nemu_ipc should be together
         # if self.config.Emulator_ScreenshotMethod == 'nemu_ipc' and self.config.Emulator_ControlMethod != 'nemu_ipc':
         #     logger.warning('When using nemu_ipc, both screenshot and control should use nemu_ipc')
@@ -233,6 +246,13 @@ class Device(Screenshot, Control, AppControl):
             raise GameNotRunningError('Game died')
 
     def handle_control_check(self, button):
+        if managed_screenshot_crop_from_environment() is not None:
+            # MaaTouch may have initialized while the launcher was still in
+            # portrait. Refreshing here rebuilds its cached axis before the
+            # first game interaction after Android rotates to landscape.
+            if self._maatouch_init_thread is not None:
+                _ = self.maatouch_builder
+            self.get_orientation()
         self.stuck_record_clear()
         self.click_record_add(button)
         self.click_record_check()

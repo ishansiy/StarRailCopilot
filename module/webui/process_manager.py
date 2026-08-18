@@ -48,21 +48,21 @@ class ProcessManager:
             if func is None:
                 func = get_config_mod(self.config_name)
             managed_resolution_lease = None
-            controller = managed_resolution_from_environment()
-            if controller is not None:
-                try:
+            try:
+                controller = managed_resolution_from_environment()
+                if controller is not None:
                     managed_resolution_lease = controller.acquire()
                     with self._managed_resolution_lock:
                         self._managed_resolution_lease = managed_resolution_lease
                     logger.info(
                         f"[{self.config_name}] 已临时设置设备分辨率为 {controller.target}"
                     )
-                except Exception as error:
-                    logger.exception(error)
-                    self.renderables.append(
-                        f"[{self.config_name}] 启动失败：无法托管设备分辨率\n"
-                    )
-                    return
+            except Exception as error:
+                logger.exception(error)
+                self.renderables.append(
+                    f"[{self.config_name}] 启动失败：无法托管设备分辨率：{error}\n"
+                )
+                return
             self._process = Process(
                 target=ProcessManager.run_process,
                 args=(

@@ -5,6 +5,11 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Mapping, Optional, Sequence
 
+from module.device.managed_screenshot_crop import (
+    ManagedScreenshotCropError,
+    managed_screenshot_crop_from_environment,
+)
+
 
 _SIZE_PATTERN = re.compile(r"^[1-9]\d*x[1-9]\d*$")
 _OVERRIDE_PATTERN = re.compile(
@@ -148,8 +153,34 @@ def managed_resolution_from_environment(
     environ: Mapping[str, str] = os.environ,
 ) -> Optional[ManagedAdbResolution]:
     target = environ.get("SRC_ADB_MANAGED_RESOLUTION", "").strip()
+    try:
+        crop = managed_screenshot_crop_from_environment(environ)
+    except ManagedScreenshotCropError as error:
+        raise ManagedAdbResolutionError(str(error)) from error
+    if crop is not None and not target:
+        raise ManagedAdbResolutionError(
+            "SRC_ADB_MANAGED_SCREEN_CROP 必须搭配 SRC_ADB_MANAGED_RESOLUTION"
+        )
     if not target:
         return None
+
+    if crop is not None:
+        if not _SIZE_PATTERN.fullmatch(target):
+            raise ManagedAdbResolutionError(
+                "SRC_ADB_MANAGED_RESOLUTION 必须使用 WIDTHxHEIGHT 格式"
+            )
+        target_width, target_height = (int(value) for value in target.split("x"))
+        source_width, source_height = crop.source_size
+        accepted_sizes = {
+            (source_width, source_height),
+            (source_height, source_width),
+        }
+        if (target_width, target_height) not in accepted_sizes:
+            raise ManagedAdbResolutionError(
+                "SRC_ADB_MANAGED_RESOLUTION 与 SRC_ADB_MANAGED_SCREEN_CROP "
+                "不匹配：裁剪前画布应为 "
+                f"{source_width}x{source_height}（或其横竖互换）"
+            )
 
     local_port = environ.get("SRC_TAILSCALE_ADB_LOCAL_PORT", "5555").strip() or "5555"
     serial = environ.get("SRC_ADB_SERIAL", "").strip() or f"127.0.0.1:{local_port}"

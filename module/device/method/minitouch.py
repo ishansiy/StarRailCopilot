@@ -14,6 +14,7 @@ from module.base.decorator import Config, cached_property, del_cached_property, 
 from module.base.timer import Timer
 from module.base.utils import *
 from module.device.connection import Connection
+from module.device.managed_screenshot_crop import managed_screenshot_crop_from_environment
 from module.device.method.utils import RETRY_TRIES, handle_adb_error, handle_unknown_host_service, retry_sleep
 from module.exception import RequestHumanTakeover, ScriptError
 from module.logger import logger
@@ -207,6 +208,27 @@ class CommandBuilder:
     def convert(self, x, y):
         max_x, max_y = self.device.max_x, self.device.max_y
         orientation = self.orientation
+
+        crop = managed_screenshot_crop_from_environment()
+        if crop is not None:
+            if self.device.config.DEVICE_OVER_HTTP:
+                raise ScriptError('Managed phone crop does not support HTTP devices')
+            if orientation != 0:
+                raise ScriptError(
+                    'Managed phone crop requires MaaTouch orientation handling'
+                )
+            if max_x <= max_y:
+                raise ScriptError(
+                    'Managed phone crop requires landscape MaaTouch axes'
+                )
+            x, y, max_x, max_y = crop.convert_touch_point(
+                x,
+                y,
+                max_x=max_x,
+                max_y=max_y,
+            )
+            self.max_x, self.max_y = max_x, max_y
+            return x, y
 
         if orientation == 0:
             pass

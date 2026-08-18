@@ -40,6 +40,31 @@ class ManagedAdbResolutionTest(unittest.TestCase):
         with self.assertRaises(ManagedAdbResolutionError):
             ManagedAdbResolution("127.0.0.1:5555", "1280*720")
 
+    def test_crop_must_match_managed_resolution_before_acquire(self):
+        with self.assertRaises(ManagedAdbResolutionError):
+            managed_resolution_from_environment(
+                {
+                    "SRC_ADB_MANAGED_RESOLUTION": "720x1334",
+                    "SRC_ADB_MANAGED_SCREEN_CROP": "0,0,52,0",
+                }
+            )
+
+    def test_crop_requires_managed_resolution(self):
+        with self.assertRaises(ManagedAdbResolutionError):
+            managed_resolution_from_environment(
+                {"SRC_ADB_MANAGED_SCREEN_CROP": "0,0,54,0"}
+            )
+
+    def test_crop_accepts_portrait_managed_resolution_pair(self):
+        controller = managed_resolution_from_environment(
+            {
+                "SRC_ADB_MANAGED_RESOLUTION": "720x1334",
+                "SRC_ADB_MANAGED_SCREEN_CROP": "0,0,54,0",
+            }
+        )
+
+        self.assertEqual(controller.target, "720x1334")
+
     def test_applies_override_and_resets_physical_size_on_release(self):
         adb = FakeAdb()
         controller = ManagedAdbResolution(
