@@ -15,6 +15,8 @@ The image runs Tailscale in userspace networking mode, so it does not require
 
 - `TS_AUTHKEY`: Tailscale auth key. Store this as a deployment Secret.
 - `TS_HOSTNAME`: Name of this container in the tailnet.
+- `SRC_TAILSCALE_ACCEPT_ROUTES`: Set to `1` only when the phone is reached
+  through a Tailnet subnet router. This accepts routes advertised to the node.
 - `SRC_TAILSCALE_ADB_HOST`: Phone MagicDNS name or Tailscale IP.
 - `SRC_TAILSCALE_ADB_PORT`: Phone wireless-debugging port.
 - `SRC_TAILSCALE_ADB_LOCAL_PORT`: Local loopback port, normally `5555`.

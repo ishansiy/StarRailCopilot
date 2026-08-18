@@ -113,6 +113,29 @@ start_tailscale() {
   fi
   echo "Tailscale 已加入 Tailnet（userspace networking）"
 
+  case "${SRC_TAILSCALE_ACCEPT_ROUTES:-}" in
+    1|true|TRUE)
+      if ! /usr/local/bin/tailscale --socket="$tailscale_socket" set --accept-routes=true; then
+        echo "Tailscale 接受子网路由配置失败" >&2
+        return 1
+      fi
+      echo "Tailscale 已启用 Tailnet 子网路由"
+      ;;
+    0|false|FALSE)
+      if ! /usr/local/bin/tailscale --socket="$tailscale_socket" set --accept-routes=false; then
+        echo "Tailscale 禁用子网路由配置失败" >&2
+        return 1
+      fi
+      echo "Tailscale 已禁用 Tailnet 子网路由"
+      ;;
+    '')
+      ;;
+    *)
+      echo "SRC_TAILSCALE_ACCEPT_ROUTES 只允许 1/0/true/false" >&2
+      return 1
+      ;;
+  esac
+
   if [ -z "$tailscale_target" ]; then
     echo "未配置 SRC_TAILSCALE_ADB_HOST，仅保持 Tailnet 节点在线"
     return 0
