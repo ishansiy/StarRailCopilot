@@ -220,12 +220,21 @@ class Connection(ConnectionAttr):
             cmd = list(map(str, cmd))
 
         if stream:
+            deadline = (
+                time.monotonic() + timeout
+                if recvall and timeout is not None
+                else None
+            )
             result = self.adb.shell(cmd, stream=stream, timeout=timeout, rstrip=rstrip)
             if recvall:
                 # bytes
                 return recv_all(
                     result,
-                    total_timeout=timeout,
+                    total_timeout=(
+                        max(0, deadline - time.monotonic())
+                        if deadline is not None
+                        else None
+                    ),
                     max_bytes=ADB_SHELL_MAX_OUTPUT_BYTES,
                 )
             else:

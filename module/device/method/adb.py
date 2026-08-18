@@ -10,6 +10,7 @@ from lxml import etree
 from module.base.decorator import Config
 from module.config.server import DICT_PACKAGE_TO_ACTIVITY
 from module.device.connection import Connection
+from module.device.managed_screenshot_crop import managed_screenshot_crop_from_environment
 from module.device.method.remove_warning import remove_screenshot_warning
 from module.device.method.utils import (ImageTruncated, PackageNotInstalled, RETRY_TRIES, handle_adb_error,
                                         handle_unknown_host_service, retry_sleep)
@@ -17,63 +18,87 @@ from module.exception import RequestHumanTakeover, ScriptError
 from module.logger import logger
 
 
-def retry(func):
-    @wraps(func)
-    def retry_wrapper(self, *args, **kwargs):
-        """
-        Args:
-            self (Adb):
-        """
-        init = None
-        for _ in range(RETRY_TRIES):
-            try:
-                if callable(init):
-                    time.sleep(retry_sleep(_))
-                    init()
-                return func(self, *args, **kwargs)
-            # Can't handle
-            except RequestHumanTakeover:
-                break
-            # When adb server was killed
-            except ConnectionResetError as e:
-                logger.error(e)
+MANAGED_SCREENSHOT_TIMEOUT = 45
+MANAGED_SCREENSHOT_RETRY_TRIES = 2
 
-                def init():
-                    self.adb_reconnect()
-            # AdbError
-            except AdbError as e:
-                if handle_adb_error(e):
-                    def init():
-                        self.adb_reconnect()
-                elif handle_unknown_host_service(e):
-                    def init():
-                        self.adb_start_server()
-                        self.adb_reconnect()
-                else:
+
+def _screenshot_retry_tries(device):
+    if device.config.DEVICE_OVER_HTTP:
+        return RETRY_TRIES
+    try:
+        crop = managed_screenshot_crop_from_environment()
+    except ValueError:
+        return RETRY_TRIES
+    if crop is None:
+        return RETRY_TRIES
+    return min(RETRY_TRIES, MANAGED_SCREENSHOT_RETRY_TRIES)
+
+
+def retry(func=None, *, retry_tries_resolver=None):
+    def decorate(wrapped):
+        @wraps(wrapped)
+        def retry_wrapper(self, *args, **kwargs):
+            """
+            Args:
+                self (Adb):
+            """
+            init = None
+            retry_tries = RETRY_TRIES
+            if retry_tries_resolver is not None:
+                retry_tries = retry_tries_resolver(self)
+            for _ in range(retry_tries):
+                try:
+                    if callable(init):
+                        time.sleep(retry_sleep(_))
+                        init()
+                    return wrapped(self, *args, **kwargs)
+                # Can't handle
+                except RequestHumanTakeover:
                     break
-            # Package not installed
-            except PackageNotInstalled as e:
-                logger.error(e)
+                # When adb server was killed
+                except ConnectionResetError as e:
+                    logger.error(e)
 
-                def init():
-                    self.detect_package()
-            # ImageTruncated
-            except ImageTruncated as e:
-                logger.error(e)
+                    def init():
+                        self.adb_reconnect()
+                # AdbError
+                except AdbError as e:
+                    if handle_adb_error(e):
+                        def init():
+                            self.adb_reconnect()
+                    elif handle_unknown_host_service(e):
+                        def init():
+                            self.adb_start_server()
+                            self.adb_reconnect()
+                    else:
+                        break
+                # Package not installed
+                except PackageNotInstalled as e:
+                    logger.error(e)
 
-                def init():
-                    pass
-            # Unknown
-            except Exception as e:
-                logger.exception(e)
+                    def init():
+                        self.detect_package()
+                # ImageTruncated
+                except ImageTruncated as e:
+                    logger.error(e)
 
-                def init():
-                    pass
+                    def init():
+                        pass
+                # Unknown
+                except Exception as e:
+                    logger.exception(e)
 
-        logger.critical(f'Retry {func.__name__}() failed')
-        raise RequestHumanTakeover
+                    def init():
+                        pass
 
-    return retry_wrapper
+            logger.critical(f'Retry {wrapped.__name__}() failed')
+            raise RequestHumanTakeover
+
+        return retry_wrapper
+
+    if func is None:
+        return decorate
+    return decorate(func)
 
 
 def load_screencap(data):
@@ -151,16 +176,17 @@ class Adb(Connection):
             logger.warning(f'Unexpected screenshot: {screenshot}')
         raise OSError(f'cannot load screenshot')
 
-    @retry
+    @retry(retry_tries_resolver=_screenshot_retry_tries)
     @Config.when(DEVICE_OVER_HTTP=False)
     def screenshot_adb(self):
-        data = self.adb_shell(['screencap', '-p'], stream=True)
+        timeout = MANAGED_SCREENSHOT_TIMEOUT if managed_screenshot_crop_from_environment() is not None else 10
+        data = self.adb_shell(['screencap', '-p'], stream=True, timeout=timeout)
         if len(data) < 500:
             logger.warning(f'Unexpected screenshot: {data}')
 
         return self.__process_screenshot(data)
 
-    @retry
+    @retry(retry_tries_resolver=_screenshot_retry_tries)
     @Config.when(DEVICE_OVER_HTTP=True)
     def screenshot_adb(self):
         data = self.adb_shell(['screencap'], stream=True)
