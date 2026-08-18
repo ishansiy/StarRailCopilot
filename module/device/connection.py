@@ -27,6 +27,9 @@ from module.exception import EmulatorNotRunningError, RequestHumanTakeover
 from module.logger import logger
 
 
+ADB_SHELL_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+
+
 def retry(func):
     @wraps(func)
     def retry_wrapper(self, *args, **kwargs):
@@ -220,7 +223,11 @@ class Connection(ConnectionAttr):
             result = self.adb.shell(cmd, stream=stream, timeout=timeout, rstrip=rstrip)
             if recvall:
                 # bytes
-                return recv_all(result)
+                return recv_all(
+                    result,
+                    total_timeout=timeout,
+                    max_bytes=ADB_SHELL_MAX_OUTPUT_BYTES,
+                )
             else:
                 # socket
                 return result

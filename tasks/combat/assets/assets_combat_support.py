@@ -58,7 +58,7 @@ COMBAT_SUPPORT_LIST = ButtonWrapper(
     share=Button(
         file='./assets/share/combat/support/COMBAT_SUPPORT_LIST.png',
         area=(39, 645, 65, 669),
-        search=(32, 643, 72, 683),
+        search=(32, 643, 126, 683),
         color=(204, 206, 206),
         button=(39, 645, 65, 669),
     ),
