@@ -65,7 +65,12 @@ def _load_adb_module():
             imdecode=lambda image, *_args, **_kwargs: image,
         ),
         "adbutils.errors": _module("adbutils.errors", AdbError=adb_error),
-        "lxml": _module("lxml", etree=types.SimpleNamespace()),
+        "lxml": _module(
+            "lxml",
+            etree=types.SimpleNamespace(
+                _Element=type("_Element", (), {}),
+            ),
+        ),
         "module.base.decorator": _module(
             "module.base.decorator",
             Config=_Config,
