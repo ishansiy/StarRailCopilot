@@ -9,6 +9,7 @@ from module.base.decorator import cached_property, del_cached_property, has_cach
 from module.base.timer import Timer
 from module.base.utils import *
 from module.device.connection import Connection
+from module.device.managed_screenshot_crop import managed_screenshot_crop_from_environment
 from module.device.method.minitouch import CommandBuilder, insert_swipe
 from module.device.method.utils import RETRY_TRIES, handle_adb_error, handle_unknown_host_service, retry_sleep
 from module.exception import RequestHumanTakeover
@@ -262,6 +263,11 @@ class MaaTouch(Connection):
     def click_maatouch(self, x, y):
         builder = self.maatouch_builder
         builder.down(x, y).commit()
+        if managed_screenshot_crop_from_environment() is not None:
+            # Some Unity buttons ignore a zero-duration pulse on the managed
+            # phone canvas. Hold for one short frame without changing normal
+            # emulator behavior.
+            builder.wait(50)
         builder.up().commit()
         builder.send()
 

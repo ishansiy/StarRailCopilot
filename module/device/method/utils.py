@@ -11,6 +11,7 @@ from adbutils import AdbTimeout
 from lxml import etree
 
 from module.device.method.remove_warning import remove_shell_warning
+from module.device.method.adb_shell_patch import shell_with_check_okay
 
 try:
     # adbutils 0.x
@@ -27,27 +28,10 @@ except ImportError:
     adbutils._device.list2cmdline = subprocess.list2cmdline
 
 
-    # BaseDevice.shell() is missing a check_okay() call before reading output,
-    # resulting in an `OKAY` prefix in output.
-    def shell(self,
-              cmdargs: t.Union[str, list, tuple],
-              stream: bool = False,
-              timeout: t.Optional[float] = None,
-              rstrip=True) -> t.Union[AdbConnection, str]:
-        if isinstance(cmdargs, (list, tuple)):
-            cmdargs = subprocess.list2cmdline(cmdargs)
-        if stream:
-            timeout = None
-        c = self.open_transport(timeout=timeout)
-        c.send_command("shell:" + cmdargs)
-        c.check_okay()  # check_okay() is missing here
-        if stream:
-            return c
-        output = c.read_until_close()
-        return output.rstrip() if rstrip else output
-
-
-    adbutils._device.BaseDevice.shell = shell
+    # BaseDevice.shell() is missing check_okay(), which leaves an `OKAY`
+    # prefix in output. Keep the caller's timeout while opening the transport;
+    # one-shot screenshots must not wait forever before recv_all() starts.
+    adbutils._device.BaseDevice.shell = shell_with_check_okay
 
 from module.base.decorator import cached_property
 from module.logger import logger

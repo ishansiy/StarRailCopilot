@@ -26,7 +26,7 @@ class _Logger:
         return lambda *args, **kwargs: None
 
 
-def _load_command_builder():
+def _load_touch_classes():
     adb_error = type("AdbError", (Exception,), {})
     adbutils_errors = _module("adbutils.errors", AdbError=adb_error)
     stubs = {
@@ -73,17 +73,74 @@ def _load_command_builder():
 
     with mock.patch.dict(sys.modules, stubs):
         sys.modules.pop("module.device.method.minitouch", None)
+        sys.modules.pop("module.device.method.maatouch", None)
         module = importlib.import_module("module.device.method.minitouch")
+        maatouch = importlib.import_module("module.device.method.maatouch")
         # Python 3.14 defers annotation evaluation; force the Python 3.10
         # import-time contract so this test catches incomplete dependency stubs.
         _ = module.Minitouch.__annotations__
-        return module.CommandBuilder, stubs["module.exception"].ScriptError
+        return (
+            module.CommandBuilder,
+            maatouch.MaatouchBuilder,
+            maatouch.MaaTouch,
+            stubs["module.exception"].ScriptError,
+        )
 
 
 class ManagedTouchCropTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.CommandBuilder, cls.ScriptError = _load_command_builder()
+        (
+            cls.CommandBuilder,
+            cls.MaatouchBuilder,
+            cls.MaaTouch,
+            cls.ScriptError,
+        ) = _load_touch_classes()
+
+    def test_maatouch_click_holds_contact_before_release(self):
+        payloads = []
+        device = types.SimpleNamespace(
+            max_x=1334,
+            max_y=720,
+            orientation=0,
+            config=types.SimpleNamespace(DEVICE_OVER_HTTP=False),
+        )
+        device.maatouch_send = lambda builder: payloads.append(
+            builder.to_minitouch()
+        )
+        device.maatouch_builder = self.MaatouchBuilder(device)
+
+        with mock.patch.dict(
+            os.environ,
+            {"SRC_ADB_MANAGED_SCREEN_CROP": "0,0,54,0"},
+        ):
+            self.MaaTouch.click_maatouch.__wrapped__(device, 1013, 52)
+
+        self.assertEqual(
+            payloads,
+            ["d 0 1013 52 100\nc\nw 50\nu 0\nc\n"],
+        )
+
+    def test_regular_maatouch_click_keeps_existing_zero_hold_behavior(self):
+        payloads = []
+        device = types.SimpleNamespace(
+            max_x=1280,
+            max_y=720,
+            orientation=0,
+            config=types.SimpleNamespace(DEVICE_OVER_HTTP=False),
+        )
+        device.maatouch_send = lambda builder: payloads.append(
+            builder.to_minitouch()
+        )
+        device.maatouch_builder = self.MaatouchBuilder(device)
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.MaaTouch.click_maatouch.__wrapped__(device, 1013, 360)
+
+        self.assertEqual(
+            payloads,
+            ["d 0 1013 360 100\nc\nu 0\nc\n"],
+        )
 
     def test_maatouch_command_preserves_asset_x_inside_right_cropped_canvas(self):
         device = types.SimpleNamespace(
