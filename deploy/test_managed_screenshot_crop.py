@@ -60,6 +60,20 @@ class ManagedScreenshotCropTest(unittest.TestCase):
             (1200, 300, 1334, 720),
         )
 
+    def test_maatouch_mapping_offsets_left_crop_without_float_rounding(self):
+        crop = managed_screenshot_crop_from_environment(
+            {"SRC_ADB_MANAGED_SCREEN_CROP": "54,0,0,0"}
+        )
+
+        self.assertEqual(
+            crop.convert_touch_point(0, 300, max_x=1334, max_y=720),
+            (54, 300, 1334, 720),
+        )
+        self.assertEqual(
+            crop.convert_touch_point(1200, 300, max_x=1334, max_y=720),
+            (1254, 300, 1334, 720),
+        )
+
     def test_leaves_portrait_launcher_frame_unchanged(self):
         image = np.zeros((1334, 720, 3), dtype=np.uint8)
         crop = managed_screenshot_crop_from_environment(
