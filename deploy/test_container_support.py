@@ -23,6 +23,14 @@ class EchoHandler(socketserver.BaseRequestHandler):
 
 
 class ContainerSupportTest(unittest.TestCase):
+    def test_compose_defers_keep_awake_default_to_runtime_crop_policy(self):
+        compose = (DEPLOY_DIR.parent / "compose.yaml").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "SRC_ADB_MANAGED_KEEP_AWAKE: ${SRC_ADB_MANAGED_KEEP_AWAKE:-}",
+            compose,
+        )
+
     def test_entrypoint_keeps_reconnecting_adb(self):
         entrypoint = (DEPLOY_DIR / "docker-entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn('set --accept-routes=true', entrypoint)

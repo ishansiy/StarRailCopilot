@@ -4,6 +4,7 @@ from module.base.timer import Timer
 from module.base.utils import *
 from module.device.method.hermit import Hermit
 from module.device.method.maatouch import MaaTouch
+from module.device.managed_screenshot_crop import managed_screenshot_crop_from_environment
 from module.device.method.minitouch import Minitouch
 from module.device.method.nemu_ipc import NemuIpc
 from module.device.method.scrcpy import Scrcpy
@@ -48,6 +49,10 @@ class Control(Hermit, Minitouch, Scrcpy, MaaTouch, NemuIpc):
 
     def multi_click(self, button, n, interval=(0.1, 0.2)):
         self.handle_control_check(button)
+        if managed_screenshot_crop_from_environment() is not None:
+            # One matched frame may intentionally authorize this explicit
+            # same-button batch, while separate controls need a new frame.
+            self._managed_crop_touch_budget = n
         click_timer = Timer(0.1)
         for _ in range(n):
             remain = ensure_time(interval) - click_timer.current_time()

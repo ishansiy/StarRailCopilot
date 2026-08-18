@@ -1,5 +1,6 @@
 import collections
 import itertools
+import time
 
 from lxml import etree
 
@@ -20,7 +21,8 @@ from module.exception import (
     GameNotRunningError,
     GameStuckError,
     GameTooManyClickError,
-    RequestHumanTakeover
+    RequestHumanTakeover,
+    ScriptError,
 )
 from module.logger import logger
 
@@ -104,7 +106,11 @@ class Device(Screenshot, Control, AppControl):
         # Early init
         if self.config.is_actual_task:
             if self.config.Emulator_ControlMethod == 'MaaTouch':
-                self.early_maatouch_init()
+                # A physical phone commonly starts in portrait. Managed crop
+                # initializes MaaTouch synchronously after a valid landscape
+                # frame instead of publishing stale portrait axes in advance.
+                if managed_screenshot_crop_from_environment() is None:
+                    self.early_maatouch_init()
             if self.config.Emulator_ControlMethod == 'minitouch':
                 self.early_minitouch_init()
 
@@ -188,6 +194,11 @@ class Device(Screenshot, Control, AppControl):
         try:
             super().screenshot()
         except RequestHumanTakeover:
+            # Managed crop is deliberately bound to ADB and one tested source
+            # canvas. Do not turn its fail-closed rejection into an automatic
+            # screenshot-method switch or another long-running benchmark.
+            if managed_screenshot_crop_from_environment() is not None:
+                raise
             if not self.ascreencap_available:
                 logger.error('aScreenCap unavailable on current device, fallback to auto')
                 self.run_simple_screenshot_benchmark()
@@ -247,12 +258,32 @@ class Device(Screenshot, Control, AppControl):
 
     def handle_control_check(self, button):
         if managed_screenshot_crop_from_environment() is not None:
-            # MaaTouch may have initialized while the launcher was still in
-            # portrait. Refreshing here rebuilds its cached axis before the
-            # first game interaction after Android rotates to landscape.
-            if self._maatouch_init_thread is not None:
-                _ = self.maatouch_builder
-            self.get_orientation()
+            captured_at = getattr(
+                self,
+                '_managed_crop_landscape_frame_at',
+                None,
+            )
+            if captured_at is None or time.monotonic() - captured_at > 15:
+                raise ScriptError(
+                    'Managed phone touch requires a recent landscape screenshot'
+                )
+            generation = getattr(
+                self,
+                '_managed_crop_frame_generation',
+                None,
+            )
+            if generation is None or generation == getattr(
+                self,
+                '_managed_crop_last_authorized_generation',
+                None,
+            ):
+                raise ScriptError(
+                    'Managed phone touch requires a new landscape screenshot'
+                )
+            self._managed_crop_last_authorized_generation = generation
+            self._managed_crop_touch_authorized_generation = generation
+            self._managed_crop_touch_authorized_at = captured_at
+            self._managed_crop_touch_budget = 1
         self.stuck_record_clear()
         self.click_record_add(button)
         self.click_record_check()
