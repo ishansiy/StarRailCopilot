@@ -17,6 +17,10 @@ from module.device.method.ldopengl import LDOpenGL
 from module.device.method.nemu_ipc import NemuIpc
 from module.device.method.scrcpy import Scrcpy
 from module.device.method.wsa import WSA
+from module.device.managed_screenshot_crop import (
+    apply_managed_screenshot_crop,
+    managed_screenshot_crop_from_environment,
+)
 from module.exception import RequestHumanTakeover, ScriptError
 from module.logger import logger
 
@@ -101,7 +105,10 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
         Returns:
             np.ndarray:
         """
-        width, height = image_size(self.image)
+        image = apply_managed_screenshot_crop(
+            image, managed_screenshot_crop_from_environment()
+        )
+        width, height = image_size(image)
         if width == 1280 and height == 720:
             return image
 

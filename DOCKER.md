@@ -24,6 +24,13 @@ The image runs Tailscale in userspace networking mode, so it does not require
   `720x1280`. The WebUI applies it immediately before a worker starts, then
   restores the phone's previous override (or its physical size) after the
   worker finishes, fails, or is stopped manually.
+- `SRC_ADB_MANAGED_SCREEN_CROP`: Optional `LEFT,TOP,RIGHT,BOTTOM` crop for a
+  phone whose hardware cutout keeps the game safe area smaller than the
+  `1280x720` asset canvas. Pair it with a correspondingly larger managed
+  resolution. For example, a `1332x720` landscape frame with a 52-pixel safe
+  inset on the right uses `SRC_ADB_MANAGED_RESOLUTION=720x1332` and
+  `SRC_ADB_MANAGED_SCREEN_CROP=0,0,52,0`. Frames of other sizes, including the
+  portrait launcher during startup, are left unchanged.
 - `SRC_TAILSCALE_ADB_PAIR_PORT`: One-time pairing port shown by Android.
 - `SRC_TAILSCALE_ADB_PAIR_CODE`: One-time pairing code. Store this as a Secret
   and remove it after the first successful pairing.
