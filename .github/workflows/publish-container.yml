@@ -42,7 +42,7 @@ jobs:
       - name: Validate container support
         run: |
           sh -n deploy/docker-entrypoint.sh
-          python -m py_compile deploy/tailscale-adb-forwarder.py deploy/configure-adb-serial.py
+          python -m py_compile deploy/tailscale-adb-forwarder.py deploy/configure-adb-serial.py deploy/adb-device-state.py
           python -m unittest deploy.test_container_support
 
       - name: Build and publish
