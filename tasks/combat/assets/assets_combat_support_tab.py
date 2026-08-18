@@ -49,20 +49,38 @@ FRIEND_ONLY = ButtonWrapper(
 )
 SUPPORT_CHECK = ButtonWrapper(
     name='SUPPORT_CHECK',
-    cn=Button(
-        file='./assets/cn/combat/support_tab/SUPPORT_CHECK.png',
-        area=(319, 46, 392, 66),
-        search=(299, 26, 412, 86),
-        color=(158, 158, 160),
-        button=(319, 46, 392, 66),
-    ),
-    en=Button(
-        file='./assets/en/combat/support_tab/SUPPORT_CHECK.png',
-        area=(274, 48, 344, 66),
-        search=(254, 28, 364, 86),
-        color=(168, 168, 170),
-        button=(274, 48, 344, 66),
-    ),
+    cn=[
+        Button(
+            file='./assets/cn/combat/support_tab/SUPPORT_CHECK.png',
+            area=(319, 46, 392, 66),
+            search=(299, 26, 412, 86),
+            color=(158, 158, 160),
+            button=(319, 46, 392, 66),
+        ),
+        Button(
+            file='./assets/cn/combat/support_tab/SUPPORT_CHECK.2.png',
+            area=(500, 43, 518, 69),
+            search=(480, 23, 538, 89),
+            color=(193, 195, 202),
+            button=(500, 43, 518, 69),
+        ),
+    ],
+    en=[
+        Button(
+            file='./assets/en/combat/support_tab/SUPPORT_CHECK.png',
+            area=(274, 48, 344, 66),
+            search=(254, 28, 364, 86),
+            color=(168, 168, 170),
+            button=(274, 48, 344, 66),
+        ),
+        Button(
+            file='./assets/en/combat/support_tab/SUPPORT_CHECK.2.png',
+            area=(500, 43, 518, 69),
+            search=(480, 23, 538, 89),
+            color=(193, 195, 202),
+            button=(500, 43, 518, 69),
+        ),
+    ],
 )
 SUPPORT_CLICK = ButtonWrapper(
     name='SUPPORT_CLICK',

@@ -28,7 +28,7 @@ LIST_REFRESH = ButtonWrapper(
     share=Button(
         file='./assets/share/combat/support_dev/LIST_REFRESH.png',
         area=(310, 649, 327, 667),
-        search=(290, 629, 347, 687),
+        search=(290, 629, 401, 688),
         color=(185, 185, 186),
         button=(310, 649, 327, 667),
     ),

@@ -1,6 +1,7 @@
 import re
 
 from module.base.timer import Timer
+from module.exception import RequestHumanTakeover
 from module.logger import logger
 from tasks.base.ui import UI
 from tasks.combat.assets.assets_combat_team import *
@@ -47,13 +48,10 @@ class CombatTeam(UI):
             in: page_team
         """
         logger.info(f'Team set: {index}')
+        team_timeout = Timer(120).start()
         # Wait teams show up
         timeout = Timer(1, count=5).start()
         for _ in self.loop():
-            # End
-            if timeout.reached():
-                logger.warning('Wait current team timeout')
-                break
             current = self._get_team()
             if current:
                 if current == index:
@@ -62,9 +60,13 @@ class CombatTeam(UI):
                     return False
                 else:
                     break
+            # End after giving a successful recognition priority at the limit.
+            if timeout.reached() or team_timeout.reached():
+                logger.warning('Wait current team timeout')
+                raise RequestHumanTakeover
 
         # Set team
-        retry = Timer(2, count=10)
+        retry = Timer(1, count=0)
         skip_first_screenshot = True
         clicked = False
         while 1:
@@ -79,6 +81,11 @@ class CombatTeam(UI):
             if current == index:
                 logger.info(f'Selected to the correct team')
                 return clicked
+            if team_timeout.reached():
+                logger.warning(f'Set team timeout, current team: {current}')
+                raise RequestHumanTakeover
+            if not 1 <= current <= 12:
+                continue
             # Click
             if retry.reached():
                 diff = index - current

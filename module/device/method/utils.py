@@ -8,6 +8,7 @@ import typing as t
 import uiautomator2 as u2
 import uiautomator2cache
 from adbutils import AdbTimeout
+from adbutils.errors import AdbError
 from lxml import etree
 
 from module.device.method.remove_warning import remove_shell_warning
@@ -115,12 +116,22 @@ def random_port(port_range):
         return new_port
 
 
-def recv_all(stream, chunk_size=4096, recv_interval=0.000) -> bytes:
+def recv_all(
+        stream,
+        chunk_size=4096,
+        recv_interval=0.000,
+        total_timeout=None,
+        max_bytes=None,
+) -> bytes:
     """
     Args:
         stream:
         chunk_size:
         recv_interval (float): Default to 0.000, use 0.001 if receiving as server
+        total_timeout (float | None): Absolute wall-clock read deadline. None
+            keeps the legacy idle-timeout-only behavior used by long-lived streams.
+        max_bytes (int | None): Maximum accumulated bytes. None keeps the
+            legacy unbounded behavior used by long-lived streams.
 
     Returns:
         bytes:
@@ -128,25 +139,69 @@ def recv_all(stream, chunk_size=4096, recv_interval=0.000) -> bytes:
     Raises:
         AdbTimeout
     """
-    if isinstance(stream, AdbConnection):
-        stream = stream.conn
-        stream.settimeout(10)
+    transport = stream
+    if isinstance(transport, AdbConnection):
+        stream = transport.conn
     else:
-        stream.settimeout(10)
+        stream = transport
+
+    deadline = None
+    if total_timeout is not None:
+        deadline = time.monotonic() + max(0, total_timeout)
+    if max_bytes is not None:
+        max_bytes = max(0, int(max_bytes))
+
+    def close_transport():
+        close = getattr(transport, 'close', None)
+        if callable(close):
+            try:
+                close()
+                return
+            except OSError:
+                pass
+        try:
+            stream.close()
+        except OSError:
+            pass
 
     try:
         fragments = []
+        received = 0
         while 1:
-            chunk = stream.recv(chunk_size)
+            timeout = 10
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise AdbTimeout('adb total read timeout')
+                timeout = min(timeout, remaining)
+            stream.settimeout(timeout)
+            recv_size = chunk_size
+            if max_bytes is not None:
+                recv_size = min(recv_size, max_bytes - received + 1)
+            chunk = stream.recv(recv_size)
             if chunk:
+                received += len(chunk)
+                if max_bytes is not None and received > max_bytes:
+                    raise AdbError(
+                        f'adb read exceeded size limit: {max_bytes} bytes'
+                    )
                 fragments.append(chunk)
                 # See https://stackoverflow.com/questions/23837827/python-server-program-has-high-cpu-usage/41749820#41749820
                 time.sleep(recv_interval)
             else:
                 break
         return remove_shell_warning(b''.join(fragments))
-    except socket.timeout:
-        raise AdbTimeout('adb read timeout')
+    except socket.timeout as e:
+        close_transport()
+        if deadline is not None and time.monotonic() >= deadline:
+            raise AdbTimeout('adb total read timeout') from e
+        raise AdbTimeout('adb read timeout') from e
+    except AdbTimeout:
+        close_transport()
+        raise
+    except AdbError:
+        close_transport()
+        raise
 
 
 def possible_reasons(*args):
