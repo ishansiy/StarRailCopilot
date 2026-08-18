@@ -108,6 +108,30 @@ class ManagedTouchCropTest(unittest.TestCase):
         self.assertEqual(builder.to_minitouch(), "d 0 1200 360 100\n")
         self.assertEqual((builder.max_x, builder.max_y), (1334, 720))
 
+    def test_maatouch_command_offsets_asset_x_inside_left_cropped_canvas(self):
+        device = types.SimpleNamespace(
+            max_x=1334,
+            max_y=720,
+            orientation=0,
+            config=types.SimpleNamespace(DEVICE_OVER_HTTP=False),
+        )
+
+        with mock.patch.dict(
+            os.environ,
+            {"SRC_ADB_MANAGED_SCREEN_CROP": "54,0,0,0"},
+        ):
+            builder = self.CommandBuilder(
+                device,
+                handle_orientation=False,
+            )
+            builder.down(0, 360)
+            builder.down(1200, 360)
+
+        first, second = builder.commands
+        self.assertEqual((first.x, first.y), (54, 360))
+        self.assertEqual((second.x, second.y), (1254, 360))
+        self.assertEqual((builder.max_x, builder.max_y), (1334, 720))
+
     def test_crop_rejects_http_device_before_emitting_touch_command(self):
         device = types.SimpleNamespace(
             max_x=1334,

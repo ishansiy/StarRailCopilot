@@ -48,8 +48,8 @@ class ManagedScreenshotCrop:
         """Map SRC asset coordinates onto MaaTouch's uncropped canvas."""
         x, y = self.asset_point_to_source(x, y)
         source_width, source_height = self.source_size
-        x = int(x / source_width * max_x)
-        y = int(y / source_height * max_y)
+        x = x * max_x // source_width
+        y = y * max_y // source_height
         return x, y, max_x, max_y
 
 
