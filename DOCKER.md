@@ -27,10 +27,13 @@ The image runs Tailscale in userspace networking mode, so it does not require
 - `SRC_ADB_MANAGED_SCREEN_CROP`: Optional `LEFT,TOP,RIGHT,BOTTOM` crop for a
   phone whose hardware cutout keeps the game safe area smaller than the
   `1280x720` asset canvas. Pair it with a correspondingly larger managed
-  resolution. For example, a `1332x720` landscape frame with a 52-pixel safe
-  inset on the right uses `SRC_ADB_MANAGED_RESOLUTION=720x1332` and
-  `SRC_ADB_MANAGED_SCREEN_CROP=0,0,52,0`. Frames of other sizes, including the
-  portrait launcher during startup, are left unchanged.
+  resolution. For example, a `1334x720` landscape frame with a 54-pixel safe
+  inset on the right uses `SRC_ADB_MANAGED_RESOLUTION=720x1334` and
+  `SRC_ADB_MANAGED_SCREEN_CROP=0,0,54,0`. Crop mode uses ADB screenshots and
+  MaaTouch control over a native ADB connection so screenshots and touch
+  coordinates share the same source canvas. HTTP device connections are not
+  supported in crop mode. Frames of other sizes, including the portrait
+  launcher during startup, are left unchanged.
 - `SRC_TAILSCALE_ADB_PAIR_PORT`: One-time pairing port shown by Android.
 - `SRC_TAILSCALE_ADB_PAIR_CODE`: One-time pairing code. Store this as a Secret
   and remove it after the first successful pairing.

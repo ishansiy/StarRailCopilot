@@ -105,9 +105,8 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
         Returns:
             np.ndarray:
         """
-        image = apply_managed_screenshot_crop(
-            image, managed_screenshot_crop_from_environment()
-        )
+        crop = managed_screenshot_crop_from_environment()
+        image = apply_managed_screenshot_crop(image, crop)
         width, height = image_size(image)
         if width == 1280 and height == 720:
             return image
@@ -124,7 +123,7 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
         else:
             raise ScriptError(f'Invalid device orientation: {self.orientation}')
 
-        return image
+        return apply_managed_screenshot_crop(image, crop)
 
     @cached_property
     def screenshot_deque(self):
@@ -233,6 +232,10 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
             return True
 
         orientated = False
+        orientated_sizes = {(720, 1280)}
+        crop = managed_screenshot_crop_from_environment()
+        if crop is not None:
+            orientated_sizes.add(crop.portrait_source_size)
         for _ in range(2):
             # Check screen size
             width, height = image_size(self.image)
@@ -240,13 +243,13 @@ class Screenshot(Adb, WSA, DroidCast, AScreenCap, Scrcpy, NemuIpc, LDOpenGL):
             if width == 1280 and height == 720:
                 self._screen_size_checked = True
                 return True
-            elif not orientated and (width == 720 and height == 1280):
+            elif not orientated and (width, height) in orientated_sizes:
                 logger.info('Received orientated screenshot, handling')
                 self.get_orientation()
                 self.image = self._handle_orientated_image(self.image)
                 orientated = True
                 width, height = image_size(self.image)
-                if width == 720 and height == 1280:
+                if (width, height) in orientated_sizes:
                     logger.info('Unable to handle orientated screenshot, continue for now')
                     return True
                 else:

@@ -29,6 +29,29 @@ class ManagedScreenshotCrop:
             _ASSET_HEIGHT + self.top + self.bottom,
         )
 
+    @property
+    def portrait_source_size(self):
+        width, height = self.source_size
+        return height, width
+
+    def asset_point_to_source(self, x: int, y: int):
+        return x + self.left, y + self.top
+
+    def convert_touch_point(
+        self,
+        x: int,
+        y: int,
+        *,
+        max_x: int,
+        max_y: int,
+    ):
+        """Map SRC asset coordinates onto MaaTouch's uncropped canvas."""
+        x, y = self.asset_point_to_source(x, y)
+        source_width, source_height = self.source_size
+        x = int(x / source_width * max_x)
+        y = int(y / source_height * max_y)
+        return x, y, max_x, max_y
+
 
 def managed_screenshot_crop_from_environment(
     environ: Mapping[str, str] = os.environ,
@@ -39,7 +62,7 @@ def managed_screenshot_crop_from_environment(
     if not _CROP_PATTERN.fullmatch(raw):
         raise ManagedScreenshotCropError(
             "SRC_ADB_MANAGED_SCREEN_CROP 必须使用 LEFT,TOP,RIGHT,BOTTOM 格式，"
-            "例如 0,0,52,0"
+            "例如 0,0,54,0"
         )
 
     left, top, right, bottom = (int(value) for value in raw.split(","))
@@ -75,4 +98,4 @@ def apply_managed_screenshot_crop(
             "托管截图裁剪结果不是 1280x720："
             f"{normalized_width}x{normalized_height}"
         )
-    return normalized
+    return np.ascontiguousarray(normalized)
