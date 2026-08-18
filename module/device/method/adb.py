@@ -20,6 +20,7 @@ from module.logger import logger
 
 MANAGED_SCREENSHOT_TIMEOUT = 90
 MANAGED_SCREENSHOT_RETRY_TRIES = 1
+MANAGED_SCREENSHOT_IDLE_ATTEMPTS = 2
 
 
 def _screenshot_retry_tries(device):
@@ -179,8 +180,30 @@ class Adb(Connection):
     @retry(retry_tries_resolver=_screenshot_retry_tries)
     @Config.when(DEVICE_OVER_HTTP=False)
     def screenshot_adb(self):
-        timeout = MANAGED_SCREENSHOT_TIMEOUT if managed_screenshot_crop_from_environment() is not None else 10
-        data = self.adb_shell(['screencap', '-p'], stream=True, timeout=timeout)
+        crop = managed_screenshot_crop_from_environment()
+        if crop is None:
+            data = self.adb_shell(['screencap', '-p'], stream=True, timeout=10)
+        else:
+            deadline = time.monotonic() + MANAGED_SCREENSHOT_TIMEOUT
+            idle_timeout = None
+            for attempt in range(MANAGED_SCREENSHOT_IDLE_ATTEMPTS):
+                timeout = deadline - time.monotonic()
+                if timeout <= 0:
+                    if idle_timeout is None:
+                        raise RequestHumanTakeover
+                    raise idle_timeout
+                try:
+                    data = self.adb_shell(
+                        ['screencap', '-p'],
+                        stream=True,
+                        timeout=timeout,
+                    )
+                    break
+                except AdbError as e:
+                    if attempt == 0 and 'adb read timeout' in str(e).lower():
+                        idle_timeout = e
+                        continue
+                    raise
         if len(data) < 500:
             logger.warning(f'Unexpected screenshot: {data}')
 
