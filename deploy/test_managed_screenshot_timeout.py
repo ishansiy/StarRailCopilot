@@ -144,6 +144,10 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
         with mock.patch.dict(
             os.environ,
             {"SRC_ADB_MANAGED_SCREEN_CROP": "0,0,54,0"},
+        ), mock.patch.object(
+            self.adb_module.time,
+            "monotonic",
+            return_value=0,
         ):
             Device().screenshot_adb()
 
@@ -156,6 +160,7 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
         timeouts = []
         reconnects = []
         adb_module = self.adb_module
+        clock = types.SimpleNamespace(now=0.0)
 
         class Device(self.Adb):
             config = types.SimpleNamespace(DEVICE_OVER_HTTP=False)
@@ -163,6 +168,7 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
             def adb_shell(self, _command, **kwargs):
                 timeout = kwargs["timeout"]
                 timeouts.append(timeout)
+                clock.now += timeout
                 raise adb_module.AdbError("adb total read timeout")
 
             def adb_reconnect(self):
@@ -171,12 +177,53 @@ class ManagedScreenshotTimeoutTest(unittest.TestCase):
         with mock.patch.dict(
             os.environ,
             {"SRC_ADB_MANAGED_SCREEN_CROP": "0,0,54,0"},
+        ), mock.patch.object(
+            adb_module.time,
+            "monotonic",
+            side_effect=lambda: clock.now,
         ), mock.patch.object(adb_module.time, "sleep", return_value=None):
             with self.assertRaises(adb_module.RequestHumanTakeover):
                 Device().screenshot_adb()
 
         self.assertEqual(timeouts, [90])
-        self.assertLessEqual(sum(timeouts), 90)
+        self.assertEqual(clock.now, 90)
+        self.assertEqual(reconnects, [])
+
+    def test_managed_crop_retries_early_read_timeout_with_remaining_deadline(self):
+        calls = []
+        reconnects = []
+        adb_module = self.adb_module
+        clock = types.SimpleNamespace(now=0.0)
+
+        class Device(self.Adb):
+            config = types.SimpleNamespace(DEVICE_OVER_HTTP=False)
+
+            def adb_shell(self, _command, **kwargs):
+                calls.append(kwargs["timeout"])
+                if len(calls) == 1:
+                    clock.now += 10
+                    raise adb_module.AdbError("adb read timeout")
+                return b"x" * 500
+
+            def adb_reconnect(self):
+                reconnects.append(1)
+                clock.now += 5
+
+            def _Adb__process_screenshot(self, data):
+                return data
+
+        with mock.patch.dict(
+            os.environ,
+            {"SRC_ADB_MANAGED_SCREEN_CROP": "0,0,54,0"},
+        ), mock.patch.object(
+            adb_module.time,
+            "monotonic",
+            side_effect=lambda: clock.now,
+        ):
+            result = Device().screenshot_adb()
+
+        self.assertEqual(result, b"x" * 500)
+        self.assertEqual(calls, [90, 80])
         self.assertEqual(reconnects, [])
 
     def test_regular_screencap_keeps_five_ten_second_attempts(self):
