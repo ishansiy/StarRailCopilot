@@ -80,7 +80,10 @@ def _load_utils():
             "uiautomator2cache",
             __file__=str(ROOT / "deploy" / "test_adb_read_limits.py"),
         ),
-        "lxml": _module("lxml", etree=types.SimpleNamespace()),
+        "lxml": _module(
+            "lxml",
+            etree=types.SimpleNamespace(_Element=type("_Element", (), {})),
+        ),
         "module.base.decorator": _module(
             "module.base.decorator",
             cached_property=functools.cached_property,
