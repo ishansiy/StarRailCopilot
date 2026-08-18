@@ -177,7 +177,7 @@ start_tailscale() {
     previous_state="__initial__"
     while :; do
       timeout "$adb_connect_timeout" adb connect "$adb_serial" >/dev/null 2>&1 || true
-      adb_state="$(adb devices 2>/dev/null | awk -v serial="$adb_serial" '$1 == serial { print $2; exit }')"
+      adb_state="$(timeout "$adb_connect_timeout" adb -s "$adb_serial" get-state 2>/dev/null || true)"
       if [ "$adb_state" != "$previous_state" ]; then
         case "$adb_state" in
           device)
